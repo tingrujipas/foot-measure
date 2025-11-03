@@ -10,6 +10,7 @@
 body { font-family: sans-serif; text-align: center; padding: 20px; }
 video, canvas { width: 90%; max-width: 400px; margin: 10px auto; border: 1px solid #ccc; display:block; }
 input, button { margin: 10px; padding: 8px; width: 80%; max-width: 400px; }
+img#snapshotImage { margin-top: 10px; border: 1px solid #aaa; }
 </style>
 </head>
 <body>
@@ -44,13 +45,9 @@ const pose = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@medi
 pose.setOptions({modelComplexity: 1, smoothLandmarks: true});
 pose.onResults(onResults);
 
-// เปิดกล้อง (พยายามใช้กล้องหลัง)
+// เปิดกล้องหลังโดยอัตโนมัติ
 const constraints = {
-  video: {
-    facingMode: { exact: "environment" },
-    width: { ideal: 1280 },
-    height: { ideal: 720 }
-  }
+  video: { facingMode: { exact: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }
 };
 
 navigator.mediaDevices.getUserMedia(constraints)
@@ -70,32 +67,31 @@ const camera = new Camera(videoElement, {
 });
 camera.start();
 
+// ฟังก์ชันวัดเท้า
 function onResults(results) {
   canvasCtx.save();
   canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
   canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
   if (results.poseLandmarks) {
-    // keypoints ของเท้า
     const leftHeel = results.poseLandmarks[29];
     const rightHeel = results.poseLandmarks[30];
     const leftToe = results.poseLandmarks[31];
     const rightToe = results.poseLandmarks[32];
 
-    // ความยาวเท้า (pixel)
+    // วัดความยาว (pixel)
     const footPixelLength = Math.abs(leftHeel.y - leftToe.y) * canvasElement.height;
-
-    // ความกว้างเท้า (pixel)
+    // วัดความกว้าง (pixel)
     const footPixelWidth = Math.abs(leftToe.x - rightToe.x) * canvasElement.width;
 
-    // วัตถุอ้างอิง = กระดาษ A4 29.7 cm
+    // สมมติวัตถุอ้างอิง = กระดาษ A4 29.7 cm
     const refPixel = 300; // ปรับตามขนาดวัตถุจริง
     const refCM = 29.7;
 
     footLengthCM = (footPixelLength / refPixel) * refCM;
     footWidthCM = (footPixelWidth / refPixel) * refCM;
 
-    // อัพเดท input
+    // อัพเดทฟอร์ม
     document.getElementById('length').value = footLengthCM.toFixed(1);
     document.getElementById('width').value = footWidthCM.toFixed(1);
 
@@ -110,10 +106,29 @@ function onResults(results) {
   canvasCtx.restore();
 }
 
-// ถ่ายภาพเก็บ Canvas
+// ถ่ายภาพ + แสดง + ดาวน์โหลด
 document.getElementById('captureBtn').onclick = function() {
-  const imageDataURL = canvasElement.toDataURL("image/png");
-  alert('📸 ถ่ายภาพสำเร็จ! พร้อมวัดขนาดเท้า');
+  const canvas = document.getElementById('output');
+  const imageDataURL = canvas.toDataURL("image/png");
+
+  // แสดงภาพ
+  let img = document.getElementById('snapshotImage');
+  if (!img) {
+    img = document.createElement('img');
+    img.id = 'snapshotImage';
+    img.style.width = '90%';
+    img.style.maxWidth = '400px';
+    document.body.appendChild(img);
+  }
+  img.src = imageDataURL;
+
+  // ดาวน์โหลด
+  const link = document.createElement('a');
+  link.href = imageDataURL;
+  link.download = 'foot_snapshot.png';
+  link.click();
+
+  alert('📸 ถ่ายภาพสำเร็จ! ภาพแสดงด้านล่างและดาวน์โหลดแล้ว');
 }
 
 // ส่งข้อมูล Google Sheet
