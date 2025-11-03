@@ -101,7 +101,7 @@ document.getElementById('captureBtn').onclick = function() {
 // ส่งข้อมูลไป Google Sheet
 document.getElementById('footForm').addEventListener('submit', e => {
   e.preventDefault();
-  fetch("<<ใส่ URL Google Apps Script ของคุณ>>", {
+  fetch("https://script.google.com/macros/s/AKfycbwhmfKpAbGtGNK_HpV4wCRRM14Z1fnh3b-guDWH_NXjg_Z4qxjwj3CdXieQlTXI8Trk/exec", {
     method: "POST",
     mode: "no-cors",
     headers: { "Content-Type": "application/json" },
