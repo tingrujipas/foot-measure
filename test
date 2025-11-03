@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>วัดขนาดเท้าออนไลน์</title>
+<style>
+  body { font-family: sans-serif; text-align: center; padding: 20px; }
+  input, button { margin: 10px; padding: 8px; width: 80%; max-width: 400px; }
+  video, canvas { width: 90%; max-width: 400px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<h2>📏 โปรแกรมวัดขนาดเท้าออนไลน์</h2>
+
+<!-- กล้อง -->
+<video id="camera" autoplay></video>
+<canvas id="snapshot" style="display:none;"></canvas>
+<br>
+<button id="captureBtn">ถ่ายภาพเท้า</button>
+
+<!-- ฟอร์มข้อมูล -->
+<form id="footForm">
+  <input type="text" id="name" placeholder="ชื่อ-นามสกุล" required><br>
+  <input type="text" id="phone" placeholder="เบอร์โทร" required><br>
+  <input type="number" id="length" placeholder="ความยาวเท้า (ซม.)" required><br>
+  <input type="number" id="width" placeholder="ความกว้างเท้า (ซม.)" required><br>
+  <input type="text" id="shoeSize" placeholder="เบอร์รองเท้าที่เหมาะสม"><br>
+  <input type="date" id="date" required><br>
+  <button type="submit">บันทึกข้อมูล</button>
+</form>
+
+<script>
+// เปิดกล้อง
+const video = document.getElementById('camera');
+navigator.mediaDevices.getUserMedia({ video: true })
+  .then(stream => video.srcObject = stream)
+  .catch(err => alert('ไม่สามารถเปิดกล้องได้: ' + err));
+
+// ถ่ายภาพ (เก็บไว้ใช้กับ AI Vision ภายหลัง)
+document.getElementById('captureBtn').onclick = function() {
+  const canvas = document.getElementById('snapshot');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  alert('📸 ถ่ายภาพสำเร็จ (ยังไม่คำนวณ AI)');
+};
+
+// ส่งข้อมูลไป Google Sheet
+document.getElementById('footForm').addEventListener('submit', e => {
+  e.preventDefault();
+  fetch("https://script.google.com/macros/s/AKfycbxleWIv_iYr0aNOlad2dQD__CjvBTt02IbCRObrceVU_IztM7UZewX85A75m-hysCOr/exec", {
+    method: "POST",
+    mode: "no-cors",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: document.getElementById('name').value,
+      phone: document.getElementById('phone').value,
+      length: document.getElementById('length').value,
+      width: document.getElementById('width').value,
+      shoeSize: document.getElementById('shoeSize').value,
+      date: document.getElementById('date').value
+    })
+  }).then(() => alert('✅ บันทึกสำเร็จ'));
+});
+</script>
+</body>
+</html>
+add index.html
