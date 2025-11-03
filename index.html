@@ -2,53 +2,106 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<title>วัดขนาดเท้าออนไลน์</title>
+<title>วัดขนาดเท้าอัตโนมัติ</title>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.9.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.5/camera_utils.js"></script>
 <style>
-  body { font-family: sans-serif; text-align: center; padding: 20px; }
-  input, button { margin: 10px; padding: 8px; width: 80%; max-width: 400px; }
-  video, canvas { width: 90%; max-width: 400px; margin-top: 10px; }
+body { font-family: sans-serif; text-align: center; padding: 20px; }
+video, canvas { width: 90%; max-width: 400px; margin: 10px auto; border: 1px solid #ccc; display:block; }
+input, button { margin: 10px; padding: 8px; width: 80%; max-width: 400px; }
 </style>
 </head>
 <body>
-<h2>📏 โปรแกรมวัดขนาดเท้าออนไลน์</h2>
 
-<!-- กล้อง -->
-<video id="camera" autoplay></video>
-<canvas id="snapshot" style="display:none;"></canvas>
+<h2>📏 โปรแกรมวัดขนาดเท้าอัตโนมัติ</h2>
+
+<video id="camera" autoplay playsinline></video>
+<canvas id="output" width="640" height="480"></canvas>
 <br>
-<button id="captureBtn">ถ่ายภาพเท้า</button>
+<button id="captureBtn">📸 ถ่ายภาพเท้า</button>
 
-<!-- ฟอร์มข้อมูล -->
 <form id="footForm">
-  <input type="text" id="name" placeholder="ชื่อ-นามสกุล" required><br>
-  <input type="text" id="phone" placeholder="เบอร์โทร" required><br>
-  <input type="number" id="length" placeholder="ความยาวเท้า (ซม.)" required><br>
-  <input type="number" id="width" placeholder="ความกว้างเท้า (ซม.)" required><br>
-  <input type="text" id="shoeSize" placeholder="เบอร์รองเท้าที่เหมาะสม"><br>
-  <input type="date" id="date" required><br>
-  <button type="submit">บันทึกข้อมูล</button>
+<input type="text" id="name" placeholder="ชื่อ-นามสกุล" required><br>
+<input type="text" id="phone" placeholder="เบอร์โทร" required><br>
+<input type="number" id="length" placeholder="ความยาวเท้า (ซม.)" required><br>
+<input type="number" id="width" placeholder="ความกว้างเท้า (ซม.)" required><br>
+<input type="text" id="shoeSize" placeholder="เบอร์รองเท้าที่เหมาะสม"><br>
+<input type="date" id="date" required><br>
+<button type="submit">💾 บันทึกข้อมูล</button>
 </form>
 
 <script>
-// เปิดกล้อง
-const video = document.getElementById('camera');
-navigator.mediaDevices.getUserMedia({ video: true })
-  .then(stream => video.srcObject = stream)
-  .catch(err => alert('ไม่สามารถเปิดกล้องได้: ' + err));
+const videoElement = document.getElementById('camera');
+const canvasElement = document.getElementById('output');
+const canvasCtx = canvasElement.getContext('2d');
 
-// ถ่ายภาพ (เก็บไว้ใช้กับ AI Vision ภายหลัง)
+let footLengthCM = 0;
+let footWidthCM = 0;
+
+// MediaPipe Pose
+const pose = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`});
+pose.setOptions({modelComplexity: 1, smoothLandmarks: true});
+pose.onResults(onResults);
+
+// เปิดกล้องมือถือ/คอม
+const camera = new Camera(videoElement, {
+  onFrame: async () => await pose.send({image: videoElement}),
+  width: 640,
+  height: 480
+});
+camera.start();
+
+function onResults(results) {
+  canvasCtx.save();
+  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+  canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+  if (results.poseLandmarks) {
+    // ใช้ keypoints ของเท้า
+    const leftHeel = results.poseLandmarks[29];   // ส้นเท้าซ้าย
+    const rightHeel = results.poseLandmarks[30];  // ส้นเท้าขวา
+    const leftToe = results.poseLandmarks[31];    // นิ้วหัวแม่เท้าซ้าย
+    const rightToe = results.poseLandmarks[32];   // นิ้วหัวแม่เท้าขวา
+
+    // คำนวณความยาวเท้า (pixel)
+    const footPixelLength = Math.abs(leftHeel.y - leftToe.y) * canvasElement.height;
+
+    // คำนวณความกว้างเท้า (pixel)
+    const footPixelWidth = Math.abs(leftToe.x - rightToe.x) * canvasElement.width;
+
+    // วัตถุอ้างอิง = กระดาษ A4 29.7 cm
+    const refPixel = 300; // ต้องปรับตามขนาดกระดาษจริงในภาพ
+    const refCM = 29.7;
+
+    footLengthCM = (footPixelLength / refPixel) * refCM;
+    footWidthCM = (footPixelWidth / refPixel) * refCM;
+
+    // อัพเดท input
+    document.getElementById('length').value = footLengthCM.toFixed(1);
+    document.getElementById('width').value = footWidthCM.toFixed(1);
+
+    // วาดจุด marker
+    canvasCtx.fillStyle = "red";
+    [leftHeel, rightHeel, leftToe, rightToe].forEach(p => {
+      canvasCtx.beginPath();
+      canvasCtx.arc(p.x * canvasElement.width, p.y * canvasElement.height, 5, 0, 2*Math.PI);
+      canvasCtx.fill();
+    });
+  }
+  canvasCtx.restore();
+}
+
+// ถ่ายภาพเก็บ Canvas
 document.getElementById('captureBtn').onclick = function() {
-  const canvas = document.getElementById('snapshot');
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  canvas.getContext('2d').drawImage(video, 0, 0);
-  alert('📸 ถ่ายภาพสำเร็จ (ยังไม่คำนวณ AI)');
-};
+  const imageDataURL = canvasElement.toDataURL("image/png");
+  alert('📸 ถ่ายภาพสำเร็จ! พร้อมวัดขนาดเท้า');
+}
 
 // ส่งข้อมูลไป Google Sheet
 document.getElementById('footForm').addEventListener('submit', e => {
   e.preventDefault();
-  fetch("https://script.google.com/macros/s/AKfycbxleWIv_iYr0aNOlad2dQD__CjvBTt02IbCRObrceVU_IztM7UZewX85A75m-hysCOr/exec", {
+  fetch("<<ใส่ URL Google Apps Script ของคุณ>>", {
     method: "POST",
     mode: "no-cors",
     headers: { "Content-Type": "application/json" },
@@ -60,9 +113,8 @@ document.getElementById('footForm').addEventListener('submit', e => {
       shoeSize: document.getElementById('shoeSize').value,
       date: document.getElementById('date').value
     })
-  }).then(() => alert('✅ บันทึกสำเร็จ'));
+  }).then(() => alert('✅ ข้อมูลบันทึกสำเร็จ!'));
 });
 </script>
 </body>
 </html>
-add index.html
